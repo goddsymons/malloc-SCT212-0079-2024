@@ -98,6 +98,33 @@ static block_t *grow(size_t need){
 
     return b;
 }
+
+/* Minimum useful payload for a new free block */
+#define MIN_PAYLOAD ALIGNMENT
+
+/* Split a large block if the remaining space can hold a header and payload */
+static void split(block_t *b, size_t need)
+{
+    if (b->size < need + HDR + MIN_PAYLOAD)
+        return;
+
+    // Creates the remaining free block after the requested payload
+    block_t *rest = (block_t *)((char *)payload(b) + need);
+
+    rest->size = b->size - need - HDR;
+    rest->next = b->next;
+    rest->free = 1;
+    rest->magic = MAGIC;
+
+    // This resizes the original block and link it to the new block
+    b->size = need;
+    b->next = rest;
+
+    // Updates the tail if the original block was last
+    if (tail == b)
+        tail = rest;
+}
+
 //find the first free block that is large enough to satisfy the requested size
 static block_t *find_first(size_t need)
 {
@@ -109,17 +136,17 @@ static block_t *find_first(size_t need)
     return NULL;
 }
 
-/* Allocate memory for the requested number of bytes */
+// Allocate memory for the requested number of bytes
 void *my_malloc(size_t size)
 {
-    /* Zero-byte requests return NULL */
+    // Zero-byte requests return NULL
     if (size == 0)
         return NULL;
 
-    /* Round the requested size up to 16-byte alignment */
+    // Round the requested size up to 16-byte alignment
     size_t need = align_up(size);
 
-    /* Search for an existing free block */
+    // Search for an existing free block
     block_t *b = find_first(need);
 
     // Requests more memory if no suitable block exists 
@@ -130,8 +157,12 @@ void *my_malloc(size_t size)
             return NULL;
     }
 
+// Splits the block if it is larger than needed
+    split(b, need);
+
     // Mark the selected block as allocated 
     b->free = 0;
+
 
     // Return the payload, not the block header
     return payload(b);
