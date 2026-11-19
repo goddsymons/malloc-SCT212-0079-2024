@@ -1,6 +1,7 @@
 
 #define _DEFAULT_SOURCE
 
+#include <stdio.h>
 #include <unistd.h>
 #include <string.h>
 #include <stdint.h>
@@ -222,3 +223,78 @@ void my_free(void *ptr)
     coalesce();
 }
 
+// Allocate memory for an array and initialise it to zero */
+void *my_calloc(size_t n, size_t size)
+{
+    // Prevents integer overflow when calculating the total size 
+    if (n != 0 && size > SIZE_MAX / n)
+        return NULL;
+
+    size_t total = n * size;
+
+    // Allocate the required memory
+    void *ptr = my_malloc(total);
+
+    // Initialise the allocated memory to zero
+    if (ptr)
+        memset(ptr, 0, total);
+
+    return ptr;
+}
+
+// Resize an existing memory allocation 
+void *my_realloc(void *ptr, size_t size)
+{
+    // this NULL pointer behaves like a normal allocation
+    if (ptr == NULL)
+        return my_malloc(size);
+
+    // A size of zero releases the existing block 
+    if (size == 0) {
+        my_free(ptr);
+        return NULL;
+    }
+
+    block_t *b = header(ptr);
+    size_t need = align_up(size);
+
+    // 1: Existing block already has enough space 
+    if (b->size >= need) {
+        split(b, need);
+        return ptr;
+    }
+
+    // 2: Expand into the next free, adjacent block 
+    block_t *n = b->next;
+
+    if (n && n->free) {
+        char *b_end = (char *)payload(b) + b->size;
+
+        if (b_end == (char *)n &&
+            b->size + HDR + n->size >= need) {
+
+            // Merge the next block into the current block 
+            b->size += HDR + n->size;
+            b->next = n->next;
+
+            if (tail == n)
+                tail = b;
+
+            split(b, need);
+            return ptr;
+        }
+    }
+
+    //3: Allocate a new block and copy existing data 
+    void *new_ptr = my_malloc(size);
+
+    if (new_ptr == NULL)
+        return NULL;
+
+    size_t copy_size = b->size < size ? b->size : size;
+
+    memcpy(new_ptr, ptr, copy_size);
+    my_free(ptr);
+
+    return new_ptr;
+}
