@@ -98,4 +98,42 @@ static block_t *grow(size_t need){
 
     return b;
 }
+//find the first free block that is large enough to satisfy the requested size
+static block_t *find_first(size_t need)
+{
+    for (block_t *b = head; b != NULL; b = b->next) {
+        if (b->free && b->size >= need)
+            return b;
+    }
+
+    return NULL;
+}
+
+/* Allocate memory for the requested number of bytes */
+void *my_malloc(size_t size)
+{
+    /* Zero-byte requests return NULL */
+    if (size == 0)
+        return NULL;
+
+    /* Round the requested size up to 16-byte alignment */
+    size_t need = align_up(size);
+
+    /* Search for an existing free block */
+    block_t *b = find_first(need);
+
+    // Requests more memory if no suitable block exists 
+    if (b == NULL) {
+        b = grow(need);
+
+        if (b == NULL)
+            return NULL;
+    }
+
+    // Mark the selected block as allocated 
+    b->free = 0;
+
+    // Return the payload, not the block header
+    return payload(b);
+}
 
