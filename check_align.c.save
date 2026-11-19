@@ -1,0 +1,13 @@
+#include <assert.h>
+#include "myalloc.c"
+
+int main(void)
+{
+    assert(align_up(1) == 16);
+    assert(align_up(16) == 16);
+    assert(align_up(17) == 32);
+
+    return 0;
+}
+
+
