@@ -125,6 +125,31 @@ static void split(block_t *b, size_t need)
         tail = rest;
 }
 
+//Merges neighbouring free blocks when they are physically adjacent 
+static void coalesce(void)
+{
+    for (block_t *b = head; b != NULL && b->next != NULL; ) {
+        block_t *n = b->next;
+
+        //Confirms the blocks are next to each other in memory 
+        char *b_end = (char *)payload(b) + b->size;
+
+        if (b->free && n->free && b_end == (char *)n) {
+            //Takes in the next block into the current block
+            b->size += HDR + n->size;
+            b->next = n->next;
+
+            if (tail == n)
+                tail = b;
+
+            //Stays on this block to check for another merge 
+        } else {
+            b = b->next;
+        }
+    }
+}
+
+
 //find the first free block that is large enough to satisfy the requested size
 static block_t *find_first(size_t need)
 {
@@ -166,5 +191,34 @@ void *my_malloc(size_t size)
 
     // Return the payload, not the block header
     return payload(b);
+}
+
+/* Release a previously allocated block */
+void my_free(void *ptr)
+{
+    // Ignores NULL pointers
+    if (ptr == NULL)
+        return;
+
+    block_t *b = header(ptr);
+
+    // This rejects blocks with an invalid magic value
+    if (b->magic != MAGIC) {
+        const char msg[] = "my_free: invalid pointer\n";
+        write(STDERR_FILENO, msg, sizeof(msg) - 1);
+        return;
+    }
+
+    // Detects attempts to free an already free block
+    if (b->free) {
+        const char msg[] = "my_free: double free detected\n";
+        write(STDERR_FILENO, msg, sizeof(msg) - 1);
+        return;
+    }
+
+    // Marks the block as available and merges adjacent free blocks
+    b->free = 1;
+
+    coalesce();
 }
 
