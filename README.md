@@ -35,14 +35,14 @@ A 64-bit Linux environment (such as Ubuntu on WSL or native Linux) with GCC and 
 
 | Task | Requirement | Status |
 |:---:|:---|:---:|
-| **1** | Block header, 16-byte alignment helpers (`align_up`), and pointer macros | Complete (✅) |
-| **2** | Heap growth using `sbrk()` (64 KB minimum request, break alignment padding) | Complete (✅) |
-| **3** | `my_malloc()` implementation with First-Fit placement | Complete (✅) |
-| **4** | Block splitting when residual space can hold header plus 16-byte payload | Complete (✅) |
-| **5** | `my_free()` with magic number check, double-free guard, and neighbor coalescing | Complete (✅) |
-| **6** | `my_calloc()` with overflow detection and `my_realloc()` with in-place growth | Complete (✅) |
-| **7** | Best-Fit policy, `heap_stats()`, `heap_dump()`, and `heap_check()` consistency validator | Complete (✅) |
-| **8** | Benchmark suite (`bench.c`) and comparative analysis report (`REPORT.md`) | Complete (✅) |
+| **1** | Block header, 16-byte alignment helpers (`align_up`), and pointer macros | Complete  |
+| **2** | Heap growth using `sbrk()` (64 KB minimum request, break alignment padding) | Complete  |
+| **3** | `my_malloc()` implementation with First-Fit placement | Complete  |
+| **4** | Block splitting when residual space can hold header plus 16-byte payload | Complete  |
+| **5** | `my_free()` with magic number check, double-free guard, and neighbor coalescing | Complete  |
+| **6** | `my_calloc()` with overflow detection and `my_realloc()` with in-place growth | Complete  |
+| **7** | Best-Fit policy, `heap_stats()`, `heap_dump()`, and `heap_check()` consistency validator | Complete  |
+| **8** | Benchmark suite (`bench.c`) and comparative analysis report (`REPORT.md`) | Complete  |
 
 ---
 
