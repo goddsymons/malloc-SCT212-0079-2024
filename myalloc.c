@@ -162,6 +162,94 @@ static block_t *find_first(size_t need)
     return NULL;
 }
 
+//Finds the smallest free block that can fit the request 
+static block_t *find_best(size_t need)
+{
+    block_t *best = NULL;
+
+    for (block_t *b = head; b != NULL; b = b->next) {
+        if (b->free && b->size >= need) {
+            if (best == NULL || b->size < best->size)
+                best = b;
+        }
+    }
+
+    return best;
+}
+
+void set_policy(fit_policy_t p)
+{
+    policy = p;
+}//this selects the allocation strategy
+
+
+// Collect information about the current heap 
+void heap_stats(heap_stats_t *out)
+{
+    out->heap_bytes = heap_bytes_total;
+    out->free_bytes = 0;
+    out->used_bytes = 0;
+    out->free_blocks = 0;
+    out->largest_free = 0;
+
+    for (block_t *b = head; b != NULL; b = b->next) {
+        if (b->free) {
+            out->free_bytes += b->size;
+            out->free_blocks++;
+
+            if (b->size > out->largest_free)
+                out->largest_free = b->size;
+        } else {
+            out->used_bytes += b->size;
+        }
+    }
+}
+//Print the current state of every block
+void heap_dump(void)
+{
+    char buf[256];
+    int i = 0;
+
+    for (block_t *b = head; b != NULL; b = b->next, i++) {
+        int len = snprintf(buf, sizeof(buf),
+                           "[%2d] %p  size=%-6zu  %s\n",
+                           i, (void *)b, b->size,
+                           b->free ? "FREE" : "USED");
+
+        write(STDOUT_FILENO, buf, len);
+    }
+}
+
+int heap_check(void)
+{
+    block_t *prev = NULL;
+
+    for (block_t *b = head; b != NULL; prev = b, b = b->next) {
+
+        //Checks a blocks integrity 
+        if (b->magic != MAGIC)
+            return 0;
+
+        // Checks payload alignment
+        if ((uintptr_t)payload(b) % ALIGNMENT != 0)
+            return 0;
+
+        // Checks linked-list address order
+        if (prev && (uintptr_t)prev >= (uintptr_t)b)
+            return 0;
+
+        // Checks that adjacent free blocks have been merged
+        if (prev && prev->free && b->free) {
+            char *prev_end = (char *)payload(prev) + prev->size;
+
+            if (prev_end == (char *)b)
+                return 0;
+        }
+    }
+
+    return 1;
+}
+
 // Allocate memory for the requested number of bytes
 void *my_malloc(size_t size)
 {
@@ -172,8 +260,13 @@ void *my_malloc(size_t size)
     // Round the requested size up to 16-byte alignment
     size_t need = align_up(size);
 
-    // Search for an existing free block
-    block_t *b = find_first(need);
+    // chooses the appropriate allocation strategy based on the current policy
+    block_t *b;
+    if (policy == FIT_BEST)
+    b = find_best(need);
+    else
+    b = find_first(need);
+
 
     // Requests more memory if no suitable block exists 
     if (b == NULL) {
