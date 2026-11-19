@@ -27,6 +27,44 @@ First-Fit was the more appropriate for this workload due to the faster allocatio
 With a linked-list search, a suitable block can be located using linear O(n) traversal. Best-Fit has to do more searching, because it considers every block in the list. These conclusions are the same as for the threshold counter: the trade-off between speed of allocation, and the type of block-finding algorithm used.
 
 ---
+### Testing
+
+---
+
+The test suite provided was used to verify the allocator, with all eight test groups T1-T8 all passing every individual check. There were 29 tests and they checked for: allocation, memory placement, block splitting, coalescing, reallocation, heap expansion and placement, policies and random stress.
+
+Further testing was carried out with Address Sanitizer and Undefined Behavior Sanitizer to identify memory issues and undefined behaviour.
+
+To run the normal tests:
+
+
+
+```
+make test
+```
+
+To run the sanitizers:
+
+```
+Gcc -std=c11 -g -fsanitize=address, undefined -o tasan myalloc.c testmyalloc.c
+
+
+./t_asan
+```
+
+Implementation Mistakes
+
+In the course of implementation, special emphasis was placed on:
+
+- Working with void data using char * for byte pointer arithmetic.
+- How the header size is taken into account when calculating the boundaries of the blocks.
+- Rearranging linked-list pointers and updating the tail after splitting or merging blocks.
+- The ability of to split remainders in order to have a header and minimum payload.
+- Only combining blocks that are contiguous in memory.
+- Returns payload addresses instead of block header addresses.
+- Using size_t` for memory sizes.
+
+---
 
 ## Questions
 
