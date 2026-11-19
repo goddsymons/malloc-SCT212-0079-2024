@@ -15,8 +15,10 @@ I ran the custom memory allocator with the same workload on both First-Fit and B
 
 ## Discussion
 
-The results for the benchmark showed that First-Fit took 0.245507 seconds to finish the workload, while Best-Fit took 0.272813 seconds. First-Fit was thus 10% faster in this test. The difference can be attributed to the fact that First-Fit stops searching as soon as it has encountered the first free block that can satisfy the request, where as Best-Fit searches the whole set of free blocks for the smallest one to satisfy the request.
+First-Fit did the job in 0.245507 seconds as compared to Best-Fit that took 0.272813 seconds. This makes First-Fit about 10% faster in this benchmark. The reason for this is the manner in which the search is done. First-Fit halts the search when it encounters the first free block which is large enough to accommodate the request. While Best-Fit searches through the entire free list for the smallest block.
 
-Both strategies left the final heap size, free memory and fragmentation value the same. The zero-valued fragmentation indicates that when the other allocations had been released and the free segments coalesced together, all the free memory was in one big block.
+Both approaches concluded with the same heap statistic. When all other remaining allocations were deallocated, coalescing combined the free blocks into a single large free block of 1,376,224 bytes. The final external fragmentation reading was 0.0000 as all remaining free payload memory was gathered in one block.
 
-This indicates that First-Fit was faster on the test workload. The benchmark is somewhat misleading, because both strategies used in the same process and used the same heap state of the allocator. Running them in separate processes with a clean heap would be more representative.
+First-Fit was the more appropriate for this workload due to the faster allocation with no clear difference in the final heap statistics. As both policies were executed sequentially within the same process and had access to the state of the heap of the allocator, the numerical results should be taken with a pinch of salt. Separate executions with a new heap would be needed to make a significant comparison.
+
+With a linked-list search, a suitable block can be located using linear O(n) traversal. Best-Fit has to do more searching, because it considers every block in the list. These conclusions are the same as for the threshold counter: the trade-off between speed of allocation, and the type of block-finding algorithm used.
