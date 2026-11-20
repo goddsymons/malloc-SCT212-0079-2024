@@ -65,34 +65,34 @@ Result: 29 passed, 0 failed
 
 ---
 
-## Design Explanation (250 words)
+## Design Explanation 
 
-The custom allocator manages memory obtained from the operating system via `sbrk()` in increments of at least 64 KB (`MIN_CHUNK`). All managed memory is tracked in a singly linked list ordered strictly by ascending memory addresses.
+The custom allocator acquires memory from the OS via `sbrk()` in increments of at least 64 KB (`MIN_CHUNK`). All acquired memory is managed and linked in a singly linked list in the order of ascending memory addresses.
 
-Each block is preceded by a header structure (`block_t`) containing the payload `size` (`size_t`), a pointer to the `next` block (`struct block *`), an allocation status flag (`free`), and a verification `magic` number (`0x12345678`). On 64-bit systems, the `block_t` struct occupies 24 bytes, which is rounded up to 32 bytes (`HDR`) via `align_up` to preserve 16-byte alignment. User pointers point directly to the payload immediately following `HDR`; rounding all requested payload sizes to multiples of 16 ensures every subsequent block and payload remains 16-byte aligned.
+Before each managed memory block is a header (`block_t`) containing the size of the payload (`size_t`), next block (`struct block *`) pointer, allocation status (`free`), and a verification magic number (`0x12345678`). On a 64-bit architecture, `block_t` occupies 24 bytes which is rounded up to 32 bytes (`HDR`) via `align_up()` to preserve 16-byte alignment. User pointers are set to payloads immediately following `HDR`. All payload sizes are rounded up to 16 bytes. This ensures that all subsequent blocks are 16 bytes aligned.
 
-When allocating via `my_malloc()`, the list is traversed according to the selected policy (First-Fit or Best-Fit). If a suitable free block is found and the leftover space can accommodate an aligned header plus a 16-byte minimum payload, `split()` partitions the block, returning the first segment to the caller and inserting the remainder into the free list. If no candidate block exists, `grow()` requests additional heap space.
+When `my_malloc()` is called, the list is scanned according to the selected policy (First-Fit/Best-Fit) and a block is found that has a free status and is big enough to have an aligned header and a 16-byte payload. If such a block exists, the block is partitioned (`split()`) and the first segment returned to the caller and the remainder is inserted to the free list. If no such block is found, more heap space is requested (`grow()`).
 
-When releasing memory via `my_free()`, the allocator validates the block's magic number and guards against double-free errors. Coalescing is performed by scanning the list and merging adjacent free blocks. Crucially, two blocks are merged only if they are physically contiguous in memory—specifically verifying that `(char *)payload(b) + b->size == (char *)b->next`—which prevents corrupting the heap across memory gaps caused by external memory allocations.
+When memory is released via `my_free()`, the block's magic number is checked and a double free is prevented. Merging of free blocks (coalescing) is done by scanning the list. Heap corruption is prevented by ensuring that two contiguous free blocks are physically aligned in memory before merging.
 
 ---
 
 ## Questions
 
 ### 1. Why must the header size be a multiple of 16 as well as the payload sizes?
-The header is positioned directly in front of the payload in memory. Assuming the block itself starts at an aligned address, adding a header whose size is a multiple of 16 guarantees that the payload address (`(char *)b + HDR`) is also 16-byte aligned. Rounding payload sizes to multiples of 16 ensures that the next block header and its corresponding payload will likewise start on 16-byte aligned boundaries.
+The header is always located directly in front of the payload in memory. Assuming the block itself starts at an aligned address, adding a header whose size is a multiple of 16, ensures that the payload address (char *)b + HDR) is 16 byte aligned. Rounding payload sizes to multiples of 16, ensures that the following block header and its corresponding payload will also be 16 byte aligned.
 
 ### 2. Why can `printf()` inside `my_malloc()` cause infinite recursion?
-Standard I/O functions such as `printf()` frequently allocate internal memory buffers dynamically via `malloc()`. If standard `malloc()` calls are mapped or linked to `my_malloc()`, invoking `printf()` inside `my_malloc()` triggers another call to `my_malloc()`, establishing an infinite recursive loop that quickly exhausts stack space and terminates the program with a segmentation fault.
+Standard I/O functions such as `printf()` frequently allocate internal memory buffers dynamically via `malloc()`. If standard `malloc()` calls are linked to `my_malloc()`, invoking `printf()` inside `my_malloc()` triggers another call to `my_malloc()`, causing an infinite recursive loop that quickly exhausts stack space and terminates the program with a segmentation fault.
 
 ### 3. Your `my_free()` is O(n). Which extra field would let you find a block's previous neighbor in O(1), and what is the name of the technique?
-Adding a `prev` pointer to each block header would allow the allocator to access the previous block in the linked list in constant time, O(1), without traversing the list. This creates a doubly-linked list. However, the previous list node is not necessarily physically adjacent in memory, so the allocator must still check physical addresses before coalescing.
+Adding a `prev` pointer to each block header makes it so the allocator can find the previous block in the linked list in constant time, O(1). This creates a doubly-linked list. Although previous block lists are not necessarily physically adjacent in memory, the allocator must still check the physical addresses in order to coalesce them.
 
 ### 4. Explain the difference between internal and external fragmentation, and name one place in your allocator where each one comes from.
-Internal fragmentation refers to allocated memory within a block that remains unused by the program. In this allocator, it arises when an allocation request is rounded up to the nearest multiple of 16 bytes (e.g., requesting 5 bytes allocates 16 bytes of payload). External fragmentation occurs when total free memory across the heap is sufficient to satisfy a request, but it is divided into non-contiguous fragments too small individually to satisfy the allocation. It arises after blocks of varying sizes are allocated, freed, and interleaved across the heap.
+Internal fragmentation occurs when memory in a block is allocated but not used by a program. This happens in this allocator when a request is rounded up to a multiple of 16 bytes (a request for 5 bytes results in the allocation of 16 bytes of payload). External fragmentation happens when the total free memory of the heap is sufficient to satisfy a request, but is divided into many small, non-contiguous fragments. This happens when the heap has blocks of varying sizes and are allocated, freed, and interleaved in the heap.
 
 ### 5. Why does `sbrk()` memory never get returned to the OS in your allocator? Describe how you could give back memory at the end of the heap.
-Our allocator only increases the program break using positive offsets with `sbrk()` and never calls `brk()` to decrease it. To return memory to the OS, the allocator could inspect whether the last block in the linked list (`tail`) is free and extends to the current program break (`(char *)payload(tail) + tail->size == sbrk(0)`). If so, it could call `brk((void *)tail)` to set the break back to the start of the tail block's header, releasing both the header and payload back to the operating system.
+The allocator only increases the program break using positive offsets with `sbrk()` and never calls `brk()` to decrease it. To return memory to the OS, the allocator could inspect whether the last block in the linked list (`tail`) is free and extends to the current program break (`(char *)payload(tail) + tail->size == sbrk(0)`). If so, it could call `brk((void *)tail)` to set the break back to the start of the tail block's header, releasing both the header and payload back to the operating system.
 
 ### 6. Two blocks are consecutive in your list but not adjacent in memory. How did this happen, and what does your coalescing code do about it?
 This can happen when another part of the program or a library obtains memory between separate `sbrk()` calls, potentially moving the program break and creating a gap between the allocator's memory regions. Our coalescing code explicitly verifies physical memory adjacency by checking `(char *)payload(b) + b->size == (char *)b->next`. If the physical end address of the current block does not match the start address of the next block, the merger is skipped.
@@ -107,10 +107,17 @@ This can happen when another part of the program or a library obtains memory bet
 
 ---
 
-## Sources & AI-Tool Declaration
+## Sources Declaration
 
 - **References & Documentation:**
-  - Linux Programmer's Manual / POSIX man pages (`sbrk(2)`, `brk(2)`, `write(2)`).
-  - Bryant & O'Hallaron, *Computer Systems: A Programmer's Perspective* (CS:APP), Chapter 9: Dynamic Memory Allocation.
+## Sources & References
+
+The following resources from the course materials were consulted for memory management, pointers, and allocator design:
+
+- Review of Pointers and Memory Allocation (Purdue CS 252)] — Heap structure, `sbrk()`, block headers, and linked-list allocation algorithms.
+- Systems Programming Book (Gustavo Rodriguez-Rivera) — Low-level dynamic memory management in C.
+- Practical System Programming with C (Sri Manikanta Palakollu, Apress 2021) — Virtual memory segments, the program break, and low-level system calls.
+- Debugging with GDB — GDB commands for inspecting block headers and heap structures.
+- Learn C Easy Way — Pointer arithmetic using `char *`, structs, and memory alignment.
 - **AI Tools:**
   - **Antigravity:**  -Helped with drafting of the README.md file as well as guided with conceptual explanations and documentation overview.
